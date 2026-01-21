@@ -3,7 +3,10 @@
 
 #include "u8g2.h"
 
-void init_display(void);
-void draw_test_page(int *values);
+#define MENU_OPTIONS 2
+
+void init_display();
+void draw_menu(int selected_option);
+void draw_settings(uint8_t usb_mode, int selected_option, int selected_channel);
 
 #endif

@@ -1,24 +1,47 @@
 #include "display.h"
-
-#include <stdbool.h>
-
 #include "u8g2_esp32_hal.h"
 #include "esp_log.h"
+
+#include <stdbool.h>
 
 #define SCLK_PIN 18
 #define SID_PIN 23
 #define CS_PIN 5
 
-#define DISPLAY_W 128
-#define DISPLAY_H 64
+#define D_WIDTH 128
+#define D_HEIGHT 64
+
+#define CHAR_C_CEDILHA "\xC7"
+#define CHAR_O_TIL "\xD5"
+
+// 32x16
+const uint8_t logo_bitmap[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x00,
+                               0x00, 0x01, 0x80, 0x00, 0x01, 0xFD, 0xBF, 0x80, 0x0F, 0xFD, 0xBF, 0xF0, 0x3F, 0xFD, 0xBF, 0xFC,
+                               0x7F, 0xF8, 0x1F, 0xFE, 0xFF, 0xE0, 0x07, 0xFF, 0xFF, 0xE0, 0x07, 0xFF, 0x7F, 0xF8, 0x1F, 0xFE,
+                               0x3F, 0xFF, 0xFF, 0xFC, 0x0F, 0xFF, 0xFF, 0xF0, 0x01, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00, 0x00};
+// 32x16
+const uint8_t usb_a_bitmap[] = {0x7F, 0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xC0, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x03,
+                                0xC0, 0x00, 0x00, 0x03, 0xCF, 0xFF, 0xFF, 0xF3, 0xCF, 0xFF, 0xFF, 0xF3, 0xCF, 0xFF, 0xFF, 0xF3,
+                                0xC3, 0x9E, 0x79, 0xC3, 0xC0, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x03,
+                                0xC0, 0x00, 0x00, 0x03, 0xC0, 0x00, 0x00, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0xFF, 0xFE};
+// 24x8
+const uint8_t usb_c_bitmap[] = {0x3f, 0xff, 0xfc, 0x60, 0x0, 0x6, 0xc0, 0x0, 0x3, 0x8f, 0xff, 0xf1, 0x8f, 0xff, 0xf1, 0xc0, 0x0, 0x3, 0x60, 0x0, 0x6, 0x3f, 0xff, 0xfc};
+// 8x8
+const uint8_t arrow[] = {0x8, 0xc, 0xfe, 0xff, 0xff, 0xfe, 0xc, 0x8};
 
 static const char *TAG = "DISPLAY";
 
 u8g2_t u8g2;
 static u8g2_esp32_hal_t hal = U8G2_ESP32_HAL_DEFAULT;
 static bool display_initialized = false;
+const char *menu_options[MENU_OPTIONS] = {"INICIAR", "CONFIGURAR"};
+const char *usb_modes[3] = {"(C/A)", "(A/A)", "(C/C)"};
+static char str_buffer[32];
 
-void init_display(void)
+float voltage_reading = 0.0;
+int voltage_avg_mv = 0;
+
+void init_display()
 {
     hal.bus.spi.clk = SCLK_PIN;
     hal.bus.spi.mosi = SID_PIN;
@@ -42,6 +65,102 @@ void init_display(void)
     ESP_LOGI(TAG, "Display ST7920_128x64 -> Inicializado.");
 }
 
-void draw_test_page(int *values)
+void draw_menu(int selected_option)
 {
+    u8g2_SetFont(&u8g2, u8g2_font_5x8_mf);
+    u8g2_ClearBuffer(&u8g2);
+
+    u8g2_DrawFrame(&u8g2, 0, 0, D_WIDTH, D_HEIGHT);
+    u8g2_DrawFrame(&u8g2, 35, 2, D_WIDTH - 37, D_HEIGHT - 4);
+
+    u8g2_DrawBitmap(&u8g2, 2, 1, 4, 16, logo_bitmap);
+    u8g2_DrawStr(&u8g2, 6, 23, "CEBRA");
+    u8g2_SetFont(&u8g2, u8g2_font_micro_tr);
+    u8g2_DrawStr(&u8g2, 2, 62, "v1.1");
+
+    u8g2_DrawBitmap(&u8g2, 37, 3 + (10 * selected_option), 1, 8, arrow);
+    u8g2_SetFont(&u8g2, u8g2_font_6x10_tf);
+    for (int i = 0; i < MENU_OPTIONS; i++)
+    {
+        u8g2_DrawStr(&u8g2, 46, 11 + (10 * i), menu_options[i]);
+    }
+
+    u8g2_SendBuffer(&u8g2);
+    
+}
+
+static int center_text(int cx, int cw, const char *text)
+{
+    int tw = u8g2_GetStrWidth(&u8g2, text);
+    int x = (cw - tw) / 2;
+    return x + cx;
+}
+
+static void draw_settings_menu_item(int cx, int cw, int text_y, const char *text, bool selected)
+{
+    int font_height = u8g2_GetAscent(&u8g2) - u8g2_GetDescent(&u8g2);
+    int x = center_text(cx, cw, text);
+
+    if (selected)
+    {
+        // Fundo preto
+        u8g2_SetDrawColor(&u8g2, 1);
+        u8g2_DrawBox(&u8g2, cx, text_y - font_height, cw, font_height + 2);
+
+        // Texto branco
+        u8g2_SetDrawColor(&u8g2, 0);
+        u8g2_DrawStr(&u8g2, x, text_y, text);
+
+        u8g2_SetDrawColor(&u8g2, 1);
+    }
+    else
+    {
+        u8g2_DrawStr(&u8g2, x, text_y, text);
+    }
+}
+
+void draw_settings(uint8_t usb_mode, int selected_option, int selected_channel)
+{
+    u8g2_ClearBuffer(&u8g2);
+    u8g2_SetFont(&u8g2, u8g2_font_5x8_tf);
+
+    u8g2_DrawFrame(&u8g2, 0, 0, D_WIDTH, D_HEIGHT);
+    u8g2_DrawHLine(&u8g2, 1, 9, D_WIDTH - 2);
+
+    draw_settings_menu_item(1, 42, 8, "OP" CHAR_C_CEDILHA CHAR_O_TIL "ES", false);
+    u8g2_DrawVLine(&u8g2, 42, 1, 62);
+    draw_settings_menu_item(43, 42, 8, "VOLTAR", selected_option == 0);
+    u8g2_DrawVLine(&u8g2, 84, 1, 8);
+    draw_settings_menu_item(85, 42, 8, "SALVAR", selected_option == 1);
+    //
+    draw_settings_menu_item(1, 42, 17, "ENTRADAS", selected_option == 2);
+    u8g2_DrawHLine(&u8g2, 1, 18, 41);
+    draw_settings_menu_item(1, 42, 26, "CANAIS", selected_option == 3);
+    u8g2_DrawHLine(&u8g2, 1, 27, 41);
+
+    if (selected_option == 2)
+    {
+        u8g2_SetFont(&u8g2, u8g2_font_6x10_tf);
+        snprintf(str_buffer, sizeof(str_buffer), "TIPO %s", usb_modes[usb_mode]);
+        u8g2_DrawStr(&u8g2, center_text(43, 84, str_buffer), 22, str_buffer);
+        switch (usb_mode)
+        {
+        case 0: // C/A
+            u8g2_DrawBitmap(&u8g2, 49, 38, 3, 8, usb_c_bitmap);
+            u8g2_DrawBitmap(&u8g2, 89, 30, 4, 16, usb_a_bitmap);
+            break;
+        case 1: // A/A
+            u8g2_DrawBitmap(&u8g2, 49, 30, 4, 16, usb_a_bitmap);
+            u8g2_DrawBitmap(&u8g2, 89, 30, 4, 16, usb_a_bitmap);
+            break;
+        case 2: // C/C
+            u8g2_DrawBitmap(&u8g2, 49, 38, 3, 8, usb_c_bitmap);
+            u8g2_DrawBitmap(&u8g2, 97, 38, 3, 8, usb_c_bitmap);
+            break;
+        }
+        u8g2_DrawHLine(&u8g2, 45, 47, 80);
+        u8g2_DrawHLine(&u8g2, 45, 48, 80);
+    }
+
+    u8g2_SendBuffer(&u8g2);
 }
