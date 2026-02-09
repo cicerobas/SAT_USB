@@ -15,9 +15,11 @@
 #define BTN_A_MOVE 15
 #define BTN_B_SELECT 2
 #define RL_CARGAS 4
+#define OPTO_SRC_1 21
+#define OPTO_SRC_2 19
 #define STORAGE_NAMESPACE "storage"
 
-static const char *TAG = "MAIN";
+//static const char *TAG = "MAIN";
 
 // Configuração dos 12 canais ADC
 static adc_channel_config_t channel_configs[12] = {
@@ -95,6 +97,8 @@ void setup()
     gpio_set_direction(BTN_B_SELECT, GPIO_MODE_INPUT);
     gpio_set_pull_mode(BTN_B_SELECT, GPIO_PULLUP_ONLY);
     gpio_set_direction(RL_CARGAS, GPIO_MODE_OUTPUT);
+    gpio_set_direction(OPTO_SRC_1, GPIO_MODE_OUTPUT);
+    gpio_set_direction(OPTO_SRC_2, GPIO_MODE_OUTPUT);
 }
 
 void adc_task(void *pvParameters)
@@ -143,6 +147,7 @@ void state_machine()
     static int main_menu_option = 0;
     static int settings_menu_option = 0;
     static int settings_selected_channel = -1;
+    static int settings_selected_input = 0;
 
     switch (current_state)
     {
@@ -186,7 +191,7 @@ void state_machine()
         }
 
         xQueueReceive(adc_response_queue, &response, 0);
-        draw_settings(usb_mode, settings_menu_option, settings_selected_channel, &response);
+        draw_settings(usb_mode, settings_menu_option, settings_selected_channel, &response, settings_selected_input);
 
         if (button_pressed(BTN_A_MOVE))
         {
@@ -194,11 +199,13 @@ void state_machine()
             {
                 settings_selected_channel = 0;
             }
-
-            if (settings_menu_option == 3) // 4 Opções
+            if (settings_menu_option == 3)
+            {
+                settings_selected_channel = -1;
+            }
+            if (settings_menu_option == 4) // 5 Opções
             {
                 settings_menu_option = 0;
-                settings_selected_channel = -1;
             }
             else
             {
@@ -244,6 +251,19 @@ void state_machine()
                 {
                     settings_selected_channel++;
                 }
+
+                break;
+            case 4:
+                if (settings_selected_input == 2)
+                {
+                    settings_selected_input = 0;
+                }
+                else
+                {
+                    settings_selected_input++;
+                }
+                gpio_set_level(OPTO_SRC_1, settings_selected_input == 1);
+                gpio_set_level(OPTO_SRC_2, settings_selected_input == 2);
 
                 break;
             }

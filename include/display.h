@@ -9,6 +9,6 @@
 
 void init_display();
 void draw_menu(int selected_option);
-void draw_settings(uint8_t usb_mode, int selected_option, int selected_channel, adc_response_t *response_data);
+void draw_settings(uint8_t usb_mode, int selected_option, int selected_channel, adc_response_t *response_data, int selected_input);
 
 #endif

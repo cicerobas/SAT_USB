@@ -115,7 +115,7 @@ static void draw_settings_menu_item(int cx, int cw, int text_y, const char *text
     }
 }
 
-void draw_settings(uint8_t usb_mode, int selected_option, int selected_channel, adc_response_t *response_data)
+void draw_settings(uint8_t usb_mode, int selected_option, int selected_channel, adc_response_t *response_data, int selected_input)
 {
     adc_channel_config_t *ch = adc_channels[selected_channel];
 
@@ -131,10 +131,12 @@ void draw_settings(uint8_t usb_mode, int selected_option, int selected_channel, 
     u8g2_DrawVLine(&u8g2, 84, 1, 8);
     draw_settings_menu_item(85, 42, 8, "SALVAR", selected_option == 1);
     //
-    draw_settings_menu_item(1, 42, 17, "ENTRADAS", selected_option == 2);
+    draw_settings_menu_item(1, 42, 17, "TIPO USB", selected_option == 2);
     u8g2_DrawHLine(&u8g2, 1, 18, 41);
     draw_settings_menu_item(1, 42, 26, "CANAIS", selected_option == 3);
     u8g2_DrawHLine(&u8g2, 1, 27, 41);
+    draw_settings_menu_item(1, 42, 35, "ENTRADAS", selected_option == 4);
+    u8g2_DrawHLine(&u8g2, 1, 36, 41);
 
     if (selected_option == 2)
     {
@@ -184,6 +186,27 @@ void draw_settings(uint8_t usb_mode, int selected_option, int selected_channel, 
         snprintf(str_buffer, sizeof(str_buffer), "%.2f", response_data->converted_values[0]); // Valor convertido
         u8g2_DrawStr(&u8g2, center_text(85, 42, str_buffer), 58, str_buffer);
         u8g2_DrawVLine(&u8g2, 84, 46, 17);
+    }
+    if (selected_option == 4)
+    {
+        u8g2_DrawFrame(&u8g2, 46, 13, 12, 30);
+        switch (selected_input)
+        {
+        case 1:
+            u8g2_DrawBox(&u8g2, 48, 24, 8, 8);
+            u8g2_DrawStr(&u8g2, 60, 31, "ENTRADA 1");
+            break;
+        case 2:
+            u8g2_DrawBox(&u8g2, 48, 33, 8, 8);
+            u8g2_DrawStr(&u8g2, 60, 40, "ENTRADA 2");
+            break;
+
+        default:
+            u8g2_DrawBox(&u8g2, 48, 15, 8, 8);
+            u8g2_DrawStr(&u8g2, 60, 22, "DESLIGADO");
+
+            break;
+        }
     }
 
     u8g2_SendBuffer(&u8g2);
