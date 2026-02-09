@@ -8,7 +8,7 @@
 static const char *TAG = "ADC_UTILS";
 static adc_oneshot_unit_handle_t adc1_handle, adc2_handle;
 
-const int samples = 10;
+const int samples = 100;
 
 esp_err_t adc_init()
 {
@@ -57,13 +57,7 @@ esp_err_t adc_init()
     return ESP_OK;
 }
 
-static float calculate_reading_to_voltage(int voltage_avg)
-{
-    //Possivelmente ajustar o calculo depois
-    return (voltage_avg - 34.5) / 582.5;
-}
-
-esp_err_t read_channel(Channel_Name channel_name, float *voltage, int *adc_voltage_mv)
+esp_err_t read_channel(Channel_Name channel_name, int *adc_voltage_mv)
 {
     adc_channel_config_t *ch = adc_channels[channel_name];
     adc_oneshot_unit_handle_t handle = (ch->unit == ADC_UNIT_1) ? adc1_handle : adc2_handle;
@@ -86,63 +80,21 @@ esp_err_t read_channel(Channel_Name channel_name, float *voltage, int *adc_volta
         }
 
         voltage_sum += voltage_sample;
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 
     int voltage_avg = (voltage_sum / samples);
     if (adc_voltage_mv != NULL)
     {
-        *adc_voltage_mv = voltage_avg > 1000 ? voltage_avg : 0;
-    }
-
-    if (voltage != NULL)
-    {
-        if (voltage_avg > 1000)
-        {
-            *voltage = calculate_reading_to_voltage(voltage_avg);
-            *voltage *= ch->needs_2x ? 2 : 1;
-            if (channel_name == CA || channel_name == CB)
-            {
-                *voltage -= 1.0;
-            }
-        }
-        else
-        {
-            *voltage = 0.0;
-        }
+        *adc_voltage_mv = voltage_avg > 500 ? voltage_avg : 0;
     }
 
     return ESP_OK;
 }
-
-esp_err_t read_all_channels(float *voltage_values)
+float convert_reading(int adc_voltage_mv)
 {
-    esp_err_t ret;
-    int voltage_avg;
-    if (voltage_values == NULL)
-    {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    for (int i = 0; i < 12; i++)
-    {
-        ret = read_channel(i, &voltage_values[i], &voltage_avg);
-        if (ret != ESP_OK)
-        {
-            voltage_values[i] = -1;
-        }
-    }
-
-    return ESP_OK;
-}
-
-void adc_deinit()
-{
-    for (int i = 0; i < 12; i++)
-    {
-        adc_cali_destroy_line_fitting(&adc_channels[i]->cali_info);
-    }
-
-    adc_oneshot_del_unit(adc1_handle);
-    adc_oneshot_del_unit(adc2_handle);
+    // 0.0000002135f * adc_f * adc_f + 0.001102682f * adc_f + 0.366791839f;
+    float adc_f = (float)adc_voltage_mv;
+    float result = 0.0000002135f * adc_f * adc_f + 0.001102682f * adc_f + 0.366791839f;
+    return result;
 }

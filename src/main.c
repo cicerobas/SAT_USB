@@ -10,6 +10,7 @@
 #include <adc_utils.h>
 #include <display.h>
 #include <state.h>
+#include <types.h>
 
 #define BTN_A_MOVE 15
 #define BTN_B_SELECT 2
@@ -49,13 +50,17 @@ adc_channel_config_t *adc_channels[12] = {
     &channel_configs[11],
 };
 
-QueueHandle_t displayQueue;
+// Filas
+QueueHandle_t adc_request_queue;
+QueueHandle_t adc_response_queue;
 
 void setup();
 
-void main_task(void *pvParameter);
+void main_task(void *pvParameters);
+void adc_task(void *pvParameters);
 
 void state_machine();
+
 bool button_pressed(gpio_num_t pin);
 uint8_t load_usb_mode();
 void save_usb_mode(uint8_t usb_mode);
@@ -66,7 +71,11 @@ void app_main()
 {
     setup();
 
-    xTaskCreate(&main_task, "main_task", 4096, NULL, 5, NULL);
+    adc_request_queue = xQueueCreate(5, sizeof(adc_request_t));
+    adc_response_queue = xQueueCreate(5, sizeof(adc_response_t));
+
+    xTaskCreate(&main_task, "main_task", 4096, NULL, 6, NULL);
+    xTaskCreate(&adc_task, "adc_task", 4096, NULL, 5, NULL);
 }
 
 void setup()
@@ -88,7 +97,38 @@ void setup()
     gpio_set_direction(RL_CARGAS, GPIO_MODE_OUTPUT);
 }
 
-void main_task(void *pvParameter)
+void adc_task(void *pvParameters)
+{
+    adc_request_t request;
+    adc_response_t response;
+
+    while (1)
+    {
+        if (xQueueReceive(adc_request_queue, &request, portMAX_DELAY))
+        {
+            int count = request.num_channels;
+            response.num_values = count;
+
+            for (int i = 0; i < count; i++)
+            {
+                read_channel(request.channels[i], &response.values[i]);
+                float converted = response.values[i] > 0 ? convert_reading(response.values[i]) : 0.0;
+                if (request.channels[i] == A_VCC || request.channels[i] == B_VCC)
+                {
+                    response.converted_values[i] = converted * 2;
+                }
+                else
+                {
+                    response.converted_values[i] = converted;
+                }
+            }
+
+            xQueueSend(adc_response_queue, &response, portMAX_DELAY);
+        }
+    }
+}
+
+void main_task(void *pvParameters)
 {
     while (1)
     {
@@ -102,7 +142,7 @@ void state_machine()
     static system_state_t current_state = STATE_MENU;
     static int main_menu_option = 0;
     static int settings_menu_option = 0;
-    static int settings_selected_channel = 0;
+    static int settings_selected_channel = -1;
 
     switch (current_state)
     {
@@ -110,7 +150,6 @@ void state_machine()
         draw_menu(main_menu_option);
         if (button_pressed(BTN_A_MOVE))
         {
-            ESP_LOGI(TAG, "BOTAO A");
             if (main_menu_option == (MENU_OPTIONS - 1))
             {
                 main_menu_option = 0;
@@ -122,9 +161,10 @@ void state_machine()
         }
         if (button_pressed(BTN_B_SELECT))
         {
-            ESP_LOGI(TAG, "BOTAO B");
             switch (main_menu_option)
             {
+            case 0:
+                break;
             case 1:
                 current_state = STATE_SETTINGS;
                 break;
@@ -136,12 +176,29 @@ void state_machine()
         break;
 
     case STATE_SETTINGS:
-        draw_settings(usb_mode, settings_menu_option, settings_selected_channel);
+        adc_response_t response;
+
+        if (settings_selected_channel >= 0)
+        {
+            adc_request_t request = {.num_channels = 1};
+            request.channels[0] = settings_selected_channel;
+            xQueueSend(adc_request_queue, &request, portMAX_DELAY);
+        }
+
+        xQueueReceive(adc_response_queue, &response, 0);
+        draw_settings(usb_mode, settings_menu_option, settings_selected_channel, &response);
+
         if (button_pressed(BTN_A_MOVE))
         {
+            if (settings_menu_option == 2)
+            {
+                settings_selected_channel = 0;
+            }
+
             if (settings_menu_option == 3) // 4 Opções
             {
                 settings_menu_option = 0;
+                settings_selected_channel = -1;
             }
             else
             {
@@ -172,6 +229,7 @@ void state_machine()
                 break;
 
             case 3:
+
                 if (settings_selected_channel == 9)
                 {
                     gpio_set_level(RL_CARGAS, 1);
@@ -186,7 +244,7 @@ void state_machine()
                 {
                     settings_selected_channel++;
                 }
-                ESP_LOGI(TAG, "Canal: %d", settings_selected_channel);
+
                 break;
             }
         }

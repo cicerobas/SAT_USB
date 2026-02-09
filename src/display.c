@@ -38,9 +38,6 @@ const char *menu_options[MENU_OPTIONS] = {"INICIAR", "CONFIGURAR"};
 const char *usb_modes[3] = {"(C/A)", "(A/A)", "(C/C)"};
 static char str_buffer[32];
 
-float voltage_reading = 0.0;
-int voltage_avg_mv = 0;
-
 void init_display()
 {
     hal.bus.spi.clk = SCLK_PIN;
@@ -86,7 +83,6 @@ void draw_menu(int selected_option)
     }
 
     u8g2_SendBuffer(&u8g2);
-    
 }
 
 static int center_text(int cx, int cw, const char *text)
@@ -119,8 +115,10 @@ static void draw_settings_menu_item(int cx, int cw, int text_y, const char *text
     }
 }
 
-void draw_settings(uint8_t usb_mode, int selected_option, int selected_channel)
+void draw_settings(uint8_t usb_mode, int selected_option, int selected_channel, adc_response_t *response_data)
 {
+    adc_channel_config_t *ch = adc_channels[selected_channel];
+
     u8g2_ClearBuffer(&u8g2);
     u8g2_SetFont(&u8g2, u8g2_font_5x8_tf);
 
@@ -160,6 +158,32 @@ void draw_settings(uint8_t usb_mode, int selected_option, int selected_channel)
         }
         u8g2_DrawHLine(&u8g2, 45, 47, 80);
         u8g2_DrawHLine(&u8g2, 45, 48, 80);
+    }
+
+    if (selected_option == 3)
+    {
+        u8g2_DrawHLine(&u8g2, 43, 18, 84);
+        snprintf(str_buffer, sizeof(str_buffer), "ID:%s", ch->name);
+        u8g2_DrawStr(&u8g2, 43, 26, str_buffer);
+        snprintf(str_buffer, sizeof(str_buffer), "GPIO:%d", ch->gpio_pin);
+        u8g2_DrawStr(&u8g2, 86, 26, str_buffer);
+        u8g2_DrawVLine(&u8g2, 84, 19, 8);
+
+        u8g2_DrawHLine(&u8g2, 43, 27, 84);
+        u8g2_DrawStr(&u8g2, center_text(43, 84, "LEITURAS"), 35, "LEITURAS");
+        u8g2_DrawHLine(&u8g2, 43, 36, 84);
+        u8g2_DrawStr(&u8g2, center_text(43, 42, "ADC/mV"), 44, "ADC/mV");
+        u8g2_DrawStr(&u8g2, center_text(86, 42, "VALOR"), 44, "VALOR");
+        u8g2_DrawVLine(&u8g2, 84, 37, 8);
+        u8g2_DrawHLine(&u8g2, 43, 45, 84);
+
+        u8g2_SetFont(&u8g2, u8g2_font_6x10_tf);
+        snprintf(str_buffer, sizeof(str_buffer), "%d", response_data->values[0]); // Valor em mV
+        u8g2_DrawStr(&u8g2, center_text(43, 42, str_buffer), 58, str_buffer);
+
+        snprintf(str_buffer, sizeof(str_buffer), "%.2f", response_data->converted_values[0]); // Valor convertido
+        u8g2_DrawStr(&u8g2, center_text(85, 42, str_buffer), 58, str_buffer);
+        u8g2_DrawVLine(&u8g2, 84, 46, 17);
     }
 
     u8g2_SendBuffer(&u8g2);

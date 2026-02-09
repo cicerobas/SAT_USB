@@ -34,8 +34,6 @@ typedef struct
 extern adc_channel_config_t *adc_channels[12];
 
 esp_err_t adc_init();
-esp_err_t read_channel(Channel_Name channel_name, float *voltage, int *adc_voltage_mv);
-esp_err_t read_all_channels(float *voltage_values);
-void adc_deinit();
-
+esp_err_t read_channel(Channel_Name channel_name, int *adc_voltage_mv);
+float convert_reading(int adc_voltage_mv);
 #endif
