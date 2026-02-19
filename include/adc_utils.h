@@ -3,6 +3,7 @@
 
 #include "esp_err.h"
 #include "adc_calibration.h"
+#include "types.h"
 
 typedef enum
 {
@@ -28,12 +29,12 @@ typedef struct
     adc_cali_info_t cali_info;
     const char *name;
     int gpio_pin;
-    int needs_2x;
+    int is_5V;
 } adc_channel_config_t;
 
 extern adc_channel_config_t *adc_channels[12];
 
 esp_err_t adc_init();
-esp_err_t read_channel(Channel_Name channel_name, int *adc_voltage_mv);
+esp_err_t read_channel(adc_result_t *adc_data);
 float convert_reading(int adc_voltage_mv);
 #endif

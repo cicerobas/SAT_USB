@@ -57,9 +57,9 @@ esp_err_t adc_init()
     return ESP_OK;
 }
 
-esp_err_t read_channel(Channel_Name channel_name, int *adc_voltage_mv)
+esp_err_t read_channel(adc_result_t *adc_data)
 {
-    adc_channel_config_t *ch = adc_channels[channel_name];
+    adc_channel_config_t *ch = adc_channels[adc_data->channel];
     adc_oneshot_unit_handle_t handle = (ch->unit == ADC_UNIT_1) ? adc1_handle : adc2_handle;
     int raw_value, voltage_sample;
     long voltage_sum = 0;
@@ -82,11 +82,15 @@ esp_err_t read_channel(Channel_Name channel_name, int *adc_voltage_mv)
         voltage_sum += voltage_sample;
         vTaskDelay(pdMS_TO_TICKS(1));
     }
-
     int voltage_avg = (voltage_sum / samples);
-    if (adc_voltage_mv != NULL)
+    adc_data->value_mv = 0;
+    int offset = (adc_data->channel == CA || adc_data->channel == CB) ? 500 : 1000;
+
+    if (voltage_avg > offset)
     {
-        *adc_voltage_mv = voltage_avg > 500 ? voltage_avg : 0;
+        adc_data->value_mv = voltage_avg;
+        float converted = convert_reading(voltage_avg);
+        adc_data->converted_value = ch->is_5V ? converted * 2 : converted;
     }
 
     return ESP_OK;
