@@ -28,8 +28,16 @@ typedef struct
 
 typedef enum
 {
+    VALUE_BELOW = -1,
+    VALUE_OK,
+    VALUE_ABOVE
+} pin_result_t;
+
+typedef enum
+{
     CHANGE_INPUT_SOURCE,
     CHECK_CONNECTORS,
+    DATA_PINS,
     MINIMUM_LOAD,
     MAXIMUM_LOAD,
     AUTOMATIC_SHORT,

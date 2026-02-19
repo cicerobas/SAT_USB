@@ -77,6 +77,8 @@ uint8_t load_usb_mode();
 void save_usb_mode(uint8_t usb_mode);
 
 step_status_t test_check_connectors();
+step_status_t test_data_pins(float *values);
+pin_result_t check_pin_value(float value, pin_info_t pin_info);
 
 uint8_t usb_mode;
 int usb_types[2];
@@ -121,7 +123,10 @@ void main_task(void *pvParameters)
 }
 
 const test_step_info_t test_sequence[] = {
-    {CHANGE_INPUT_SOURCE, ""}, {CHECK_CONNECTORS, "VERIFICAR CONECTORES"}};
+    {CHANGE_INPUT_SOURCE, ""},
+    {CHECK_CONNECTORS, "VERIFICAR CONECTORES"},
+    {DATA_PINS, "PINOS DE DADOS"},
+};
 
 void state_machine()
 {
@@ -299,7 +304,29 @@ void state_machine()
             }
 
             break;
+        case DATA_PINS:
+            if (!executed)
+            {
+                float values[10];
+                step_result = test_data_pins(values);
+                draw_data_pins_test(test_sequence[current_step_index].step_title, usb_types, values);
+                executed = !step_result.status || check_timer_delay(3000);
+            }
+            else
+            {
+                executed = false;
+                if (step_result.status)
+                {
+                    step_start_time_us = esp_timer_get_time();
+                    current_step_index++;
+                }
+                else
+                {
+                    current_state = STATE_TEST_FAIL;
+                }
+            }
 
+            break;
         default:
             ESP_LOGI(TAG, "FIM");
             current_input_source = 0;
@@ -447,4 +474,91 @@ step_status_t test_check_connectors()
     }
 
     return test_result;
+}
+
+step_status_t test_data_pins(float *values)
+{
+    step_status_t test_result;
+    adc_result_t adc_data;
+    char str_buffer[32];
+
+    pins_info[0].required = usb_types[0];
+    pins_info[1].required = usb_types[0];
+    pins_info[5].required = usb_types[1];
+    pins_info[6].required = usb_types[1];
+    pins_info[4].required = false;
+    pins_info[9].required = false;
+
+    for (int i = 0; i < 10; i++)
+    {
+        if (pins_info[i].required)
+        {
+            adc_data.channel = pins_info[i].pin;
+            read_channel(&adc_data);
+            values[i] = adc_data.converted_value;
+        }
+        else
+        {
+            values[i] = 0.0;
+        }
+        memset(&adc_data, 0, sizeof(adc_result_t));
+    }
+    for (int i = 0; i < 10; i++)
+    {
+        if (pins_info[i].required)
+        {
+            switch (i)
+            {
+            case 0:
+            case 1:
+                if (check_pin_value(values[0], pins_info[0]) == check_pin_value(values[1], pins_info[1]))
+                {
+                    test_result.status = false;
+                    strcpy(test_result.message, "CON_A: PINOS CC1/CC2");
+                    return test_result;
+                }
+                break;
+            case 5:
+            case 6:
+                if (check_pin_value(values[5], pins_info[5]) == check_pin_value(values[6], pins_info[6]))
+                {
+                    test_result.status = false;
+                    strcpy(test_result.message, "CON_B: PINOS CC1/CC2");
+                    return test_result;
+                }
+                break;
+
+            default:
+                pin_result_t pin_result = check_pin_value(values[i], pins_info[i]);
+                switch (pin_result)
+                {
+                case VALUE_BELOW:
+                    snprintf(str_buffer, sizeof(str_buffer), "PINO: %s BAIXO", adc_channels[i]->name);
+                    test_result.status = false;
+                    strcpy(test_result.message, str_buffer);
+                    return test_result;
+                    break;
+                case VALUE_ABOVE:
+                    snprintf(str_buffer, sizeof(str_buffer), "PINO: %s ALTO", adc_channels[i]->name);
+                    test_result.status = false;
+                    strcpy(test_result.message, str_buffer);
+                    return test_result;
+                    break;
+                default:
+                    break;
+                }
+
+                break;
+            }
+        }
+    }
+
+    test_result.status = true;
+    strcpy(test_result.message, "OK");
+    return test_result;
+}
+
+pin_result_t check_pin_value(float value, pin_info_t pin_info)
+{
+    return (value >= pin_info.low_limit) - (value <= pin_info.high_limit);
 }

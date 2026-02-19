@@ -236,6 +236,57 @@ void draw_check_connectors_test(const char *title, int usb_types[2])
     u8g2_SendBuffer(&u8g2);
 }
 
+void draw_data_pins_test(const char *title, int usb_types[2], float values[10])
+{
+    char data_str_buffer[32];
+
+    u8g2_ClearBuffer(&u8g2);
+    u8g2_SetFont(&u8g2, u8g2_font_5x8_tf);
+
+    u8g2_DrawFrame(&u8g2, 0, 0, D_WIDTH, D_HEIGHT);
+    u8g2_DrawStr(&u8g2, center_text(1, 126, title), 8, title);
+    u8g2_DrawHLine(&u8g2, 1, 9, D_WIDTH - 2);
+
+    // CA
+    u8g2_DrawStr(&u8g2, center_text(1, 62, str_ca), 17, str_ca);
+    snprintf(data_str_buffer, sizeof(data_str_buffer), "DN : %.2f V", values[2]);
+    u8g2_DrawStr(&u8g2, 4, 26, data_str_buffer);
+    snprintf(data_str_buffer, sizeof(data_str_buffer), "DP : %.2f V", values[3]);
+    u8g2_DrawStr(&u8g2, 4, 35, data_str_buffer);
+    if (usb_types[0])
+    {
+        snprintf(data_str_buffer, sizeof(data_str_buffer), "CC1: %.2f V", values[0]);
+        u8g2_DrawStr(&u8g2, 4, 44, data_str_buffer);
+        snprintf(data_str_buffer, sizeof(data_str_buffer), "CC2: %.2f V", values[1]);
+        u8g2_DrawStr(&u8g2, 4, 53, data_str_buffer);
+    }
+
+    // CB
+    u8g2_DrawStr(&u8g2, center_text(65, 62, str_cb), 17, str_cb);
+    snprintf(data_str_buffer, sizeof(data_str_buffer), "DN : %.2f V", values[7]);
+    u8g2_DrawStr(&u8g2, 68, 26, data_str_buffer);
+    snprintf(data_str_buffer, sizeof(data_str_buffer), "DP : %.2f V", values[8]);
+    u8g2_DrawStr(&u8g2, 68, 35, data_str_buffer);
+    if (usb_types[1])
+    {
+        snprintf(data_str_buffer, sizeof(data_str_buffer), "CC1: %.2f V", values[5]);
+        u8g2_DrawStr(&u8g2, 68, 44, data_str_buffer);
+        snprintf(data_str_buffer, sizeof(data_str_buffer), "CC2: %.2f V", values[6]);
+        u8g2_DrawStr(&u8g2, 68, 53, data_str_buffer);
+    }
+
+    //
+    u8g2_DrawVLine(&u8g2, 63, 10, 44);
+    u8g2_DrawVLine(&u8g2, 64, 10, 44);
+    u8g2_DrawHLine(&u8g2, 1, 18, D_WIDTH - 2);
+    u8g2_DrawHLine(&u8g2, 1, 27, D_WIDTH - 2);
+    u8g2_DrawHLine(&u8g2, 1, 36, D_WIDTH - 2);
+    u8g2_DrawHLine(&u8g2, 1, 45, D_WIDTH - 2);
+    u8g2_DrawHLine(&u8g2, 1, 54, D_WIDTH - 2);
+
+    u8g2_SendBuffer(&u8g2);
+}
+
 void draw_test_fail_page(const char *step_title, const char *error_message)
 {
     char *title = "TESTE REPROVADO";
@@ -254,6 +305,6 @@ void draw_test_fail_page(const char *step_title, const char *error_message)
 
     u8g2_DrawHLine(&u8g2, 1, 54, D_WIDTH - 2);
     u8g2_DrawStr(&u8g2, 2, 62, "B)VOLTAR");
-    
+
     u8g2_SendBuffer(&u8g2);
 }
