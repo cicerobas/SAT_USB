@@ -287,6 +287,71 @@ void draw_data_pins_test(const char *title, int usb_types[2], float values[10])
     u8g2_SendBuffer(&u8g2);
 }
 
+void draw_vcc_load_test(const char *title, float values[4])
+{
+    u8g2_ClearBuffer(&u8g2);
+    u8g2_SetFont(&u8g2, u8g2_font_5x8_tf);
+
+    u8g2_DrawFrame(&u8g2, 0, 0, D_WIDTH, D_HEIGHT);
+    u8g2_DrawStr(&u8g2, center_text(1, 126, title), 8, title);
+    u8g2_DrawHLine(&u8g2, 1, 9, D_WIDTH - 2);
+
+    u8g2_DrawStr(&u8g2, center_text(1, 62, str_ca), 17, str_ca);
+    u8g2_DrawStr(&u8g2, center_text(65, 62, str_cb), 17, str_cb);
+
+    u8g2_SetFont(&u8g2, u8g2_font_6x10_tf);
+    snprintf(str_buffer, sizeof(str_buffer), "%.2f V", values[0]);
+    u8g2_DrawStr(&u8g2, center_text(1, 61, str_buffer), 38, str_buffer);
+    snprintf(str_buffer, sizeof(str_buffer), "%.2f A", values[1]);
+    u8g2_DrawStr(&u8g2, center_text(1, 61, str_buffer), 48, str_buffer);
+
+    snprintf(str_buffer, sizeof(str_buffer), "%.2f V", values[2]);
+    u8g2_DrawStr(&u8g2, center_text(65, 61, str_buffer), 38, str_buffer);
+    snprintf(str_buffer, sizeof(str_buffer), "%.2f A", values[3]);
+    u8g2_DrawStr(&u8g2, center_text(65, 61, str_buffer), 48, str_buffer);
+
+    u8g2_DrawVLine(&u8g2, 63, 10, 53);
+    u8g2_DrawVLine(&u8g2, 64, 10, 53);
+    u8g2_DrawHLine(&u8g2, 1, 18, D_WIDTH - 2);
+    u8g2_SendBuffer(&u8g2);
+}
+
+void draw_auto_short_test(const char *title, float values[2], int status[4])
+{
+    u8g2_ClearBuffer(&u8g2);
+    u8g2_SetFont(&u8g2, u8g2_font_5x8_tf);
+
+    u8g2_DrawFrame(&u8g2, 0, 0, D_WIDTH, D_HEIGHT);
+    u8g2_DrawStr(&u8g2, center_text(1, 126, title), 8, title);
+    u8g2_DrawHLine(&u8g2, 1, 9, D_WIDTH - 2);
+
+    u8g2_DrawStr(&u8g2, center_text(1, 62, str_ca), 17, str_ca);
+    u8g2_DrawStr(&u8g2, center_text(65, 62, str_cb), 17, str_cb);
+
+    snprintf(str_buffer, sizeof(str_buffer), "SHUTDOWN:%s", status[0] ? "OK" : "-");
+    u8g2_DrawStr(&u8g2, center_text(1, 61, str_buffer), 53, str_buffer);
+    snprintf(str_buffer, sizeof(str_buffer), "RECOVERY:%s", status[1] ? "OK" : "-");
+    u8g2_DrawStr(&u8g2, center_text(1, 61, str_buffer), 62, str_buffer);
+
+    snprintf(str_buffer, sizeof(str_buffer), "SHUTDOWN:%s", status[2] ? "OK" : "-");
+    u8g2_DrawStr(&u8g2, center_text(65, 61, str_buffer), 53, str_buffer);
+    snprintf(str_buffer, sizeof(str_buffer), "RECOVERY:%s", status[3] ? "OK" : "-");
+    u8g2_DrawStr(&u8g2, center_text(65, 61, str_buffer), 62, str_buffer);
+
+    u8g2_SetFont(&u8g2, u8g2_font_6x10_tf);
+    snprintf(str_buffer, sizeof(str_buffer), "%.2f V", values[0]);
+    u8g2_DrawStr(&u8g2, center_text(1, 61, str_buffer), 36, str_buffer);
+    snprintf(str_buffer, sizeof(str_buffer), "%.2f V", values[1]);
+    u8g2_DrawStr(&u8g2, center_text(65, 61, str_buffer), 36, str_buffer);
+
+    u8g2_DrawVLine(&u8g2, 63, 10, 53);
+    u8g2_DrawVLine(&u8g2, 64, 10, 53);
+    u8g2_DrawHLine(&u8g2, 1, 18, D_WIDTH - 2);
+    u8g2_DrawHLine(&u8g2, 1, 45, D_WIDTH - 2);
+    u8g2_DrawHLine(&u8g2, 1, 54, D_WIDTH - 2);
+    u8g2_SendBuffer(&u8g2);
+}
+
 void draw_test_fail_page(const char *step_title, const char *error_message)
 {
     char *title = "TESTE REPROVADO";
@@ -305,6 +370,24 @@ void draw_test_fail_page(const char *step_title, const char *error_message)
 
     u8g2_DrawHLine(&u8g2, 1, 54, D_WIDTH - 2);
     u8g2_DrawStr(&u8g2, 2, 62, "B)VOLTAR");
+
+    u8g2_SendBuffer(&u8g2);
+}
+
+void draw_test_pass_page()
+{
+    char *title = "TESTE APROVADO";
+
+    u8g2_ClearBuffer(&u8g2);
+    u8g2_SetFont(&u8g2, u8g2_font_5x8_tf);
+    u8g2_DrawStr(&u8g2, 2, 62, "B)VOLTAR      A)REINICIAR");
+    u8g2_DrawStr(&u8g2, center_text(1, 126, "CEBRA"), 8, "CEBRA");
+    u8g2_DrawFrame(&u8g2, 0, 0, D_WIDTH, D_HEIGHT);
+
+    u8g2_SetFont(&u8g2, u8g2_font_9x18_tf);
+    u8g2_DrawStr(&u8g2, center_text(1, 126, title), 30, title);
+    u8g2_DrawHLine(&u8g2, 1, 9, D_WIDTH - 2);
+    u8g2_DrawHLine(&u8g2, 1, 54, D_WIDTH - 2);
 
     u8g2_SendBuffer(&u8g2);
 }

@@ -16,11 +16,13 @@
 #define BTN_A_MOVE 15
 #define BTN_B_SELECT 2
 #define RL_CARGAS 4
+#define RL_CURTO_A 17
+#define RL_CURTO_B 16
 #define OPTO_SRC_1 21
 #define OPTO_SRC_2 19
 #define STORAGE_NAMESPACE "storage"
 
-static const char *TAG = "MAIN";
+// static const char *TAG = "MAIN";
 
 // Configuração dos 12 canais ADC
 static adc_channel_config_t channel_configs[12] = {
@@ -78,6 +80,8 @@ void save_usb_mode(uint8_t usb_mode);
 
 step_status_t test_check_connectors();
 step_status_t test_data_pins(float *values);
+step_status_t test_vcc_load(float *values, bool load_on);
+step_status_t test_auto_short(float *values, int *status);
 pin_result_t check_pin_value(float value, pin_info_t pin_info);
 
 uint8_t usb_mode;
@@ -109,6 +113,8 @@ void setup()
     gpio_set_direction(BTN_B_SELECT, GPIO_MODE_INPUT);
     gpio_set_pull_mode(BTN_B_SELECT, GPIO_PULLUP_ONLY);
     gpio_set_direction(RL_CARGAS, GPIO_MODE_OUTPUT);
+    gpio_set_direction(RL_CURTO_A, GPIO_MODE_OUTPUT);
+    gpio_set_direction(RL_CURTO_B, GPIO_MODE_OUTPUT);
     gpio_set_direction(OPTO_SRC_1, GPIO_MODE_OUTPUT);
     gpio_set_direction(OPTO_SRC_2, GPIO_MODE_OUTPUT);
 }
@@ -126,6 +132,12 @@ const test_step_info_t test_sequence[] = {
     {CHANGE_INPUT_SOURCE, ""},
     {CHECK_CONNECTORS, "VERIFICAR CONECTORES"},
     {DATA_PINS, "PINOS DE DADOS"},
+    {MINIMUM_LOAD, "CARGA MINIMA|E1"},
+    {MAXIMUM_LOAD, "CARGA MAXIMA|E1"},
+    {CHANGE_INPUT_SOURCE, ""},
+    {MINIMUM_LOAD, "CARGA MINIMA|E2"},
+    {MAXIMUM_LOAD, "CARGA MAXIMA|E2"},
+    {AUTOMATIC_SHORT, "CURTO AUTOMATICO"},
 };
 
 void state_machine()
@@ -267,7 +279,6 @@ void state_machine()
         switch (test_sequence[current_step_index].type)
         {
         case CHANGE_INPUT_SOURCE:
-            ESP_LOGI(TAG, "MUDAR ENTRADA");
             current_input_source++;
             gpio_set_level(OPTO_SRC_1, current_input_source == 1);
             gpio_set_level(OPTO_SRC_2, current_input_source == 2);
@@ -327,18 +338,116 @@ void state_machine()
             }
 
             break;
+        case MINIMUM_LOAD:
+        case MAXIMUM_LOAD:
+            bool load_on = test_sequence[current_step_index].type == MAXIMUM_LOAD;
+            static bool rl_on = false;
+            if (!executed)
+            {
+                float values[4];
+                if (!rl_on && load_on)
+                {
+                    gpio_set_level(RL_CARGAS, 1);
+                    rl_on = true;
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                }
+
+                step_result = test_vcc_load(values, load_on);
+                draw_vcc_load_test(test_sequence[current_step_index].step_title, values);
+
+                executed = check_timer_delay(4000);
+            }
+            else
+            {
+                executed = false;
+                if (rl_on)
+                {
+                    gpio_set_level(RL_CARGAS, 0);
+                    rl_on = false;
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                }
+                if (step_result.status)
+                {
+                    step_start_time_us = esp_timer_get_time();
+                    current_step_index++;
+                }
+                else
+                {
+                    current_state = STATE_TEST_FAIL;
+                }
+            }
+            break;
+        case AUTOMATIC_SHORT:
+            if (!executed)
+            {
+                float values[2];
+                static int status[4] = {0, 0, 0, 0};
+                static bool success_detected = false;
+                static int64_t success_time = 0;
+                adc_result_t adc_data;
+
+                for (int i = 0; i < 2; i++)
+                {
+                    adc_data.channel = i == 0 ? A_VCC : B_VCC;
+                    read_channel(&adc_data);
+                    values[i] = adc_data.converted_value;
+                }
+                draw_auto_short_test(test_sequence[current_step_index].step_title, values, status);
+
+                if (!success_detected)
+                {
+                    step_result = test_auto_short(values, status);
+                }
+
+                if (step_result.status && !success_detected)
+                {
+                    success_detected = true;
+                    success_time = esp_timer_get_time();
+                }
+
+                bool timeout = check_timer_delay(10000);
+                bool success_delay_done = success_detected && ((esp_timer_get_time() - success_time) >= 1500000);
+
+                executed = success_delay_done || timeout;
+
+                if (executed)
+                {
+                    memset(status, 0, sizeof(status));
+                    success_detected = false;
+                    success_time = 0;
+                }
+            }
+            else
+            {
+                executed = false;
+                if (step_result.status)
+                {
+                    step_start_time_us = esp_timer_get_time();
+                    current_step_index++;
+                }
+                else
+                {
+                    strcpy(step_result.message, "FALHA EM SHUT/REC");
+                    current_state = STATE_TEST_FAIL;
+                }
+            }
+            break;
         default:
-            ESP_LOGI(TAG, "FIM");
+            memset(&step_result, 0, sizeof(step_status_t));
             current_input_source = 0;
             current_state = STATE_MENU;
             gpio_set_level(OPTO_SRC_1, 0);
             gpio_set_level(OPTO_SRC_2, 0);
+            current_state = STATE_TEST_PASS;
             break;
         }
         break;
 
     case STATE_TEST_FAIL:
         draw_test_fail_page(test_sequence[step_result.index].step_title, step_result.message);
+        current_input_source = 0;
+        gpio_set_level(OPTO_SRC_1, 0);
+        gpio_set_level(OPTO_SRC_2, 0);
         if (button_pressed(BTN_B_SELECT))
         {
             current_state = STATE_MENU;
@@ -346,7 +455,16 @@ void state_machine()
         break;
 
     case STATE_TEST_PASS:
-        // PASS
+        draw_test_pass_page();
+        if (button_pressed(BTN_B_SELECT))
+        {
+            current_state = STATE_MENU;
+        }
+        if (button_pressed(BTN_A_MOVE))
+        {
+            current_step_index = 0;
+            current_state = STATE_TEST_RUNNING;
+        }
         break;
 
     default:
@@ -556,6 +674,136 @@ step_status_t test_data_pins(float *values)
     test_result.status = true;
     strcpy(test_result.message, "OK");
     return test_result;
+}
+
+step_status_t test_vcc_load(float *values, bool load_on)
+{
+    const int pins[4] = {A_VCC, CA, B_VCC, CB};
+    step_status_t test_result;
+    pin_result_t con_a, con_b;
+    adc_result_t adc_data;
+    char str_buffer[32];
+
+    for (int i = 0; i < 4; i++)
+    {
+        adc_data.channel = pins[i];
+        read_channel(&adc_data);
+        vTaskDelay(pdMS_TO_TICKS(1));
+        if (i == 1 || i == 3)
+        {
+            values[i] = load_on ? adc_data.converted_value : 0.0;
+        }
+        else
+        {
+            values[i] = adc_data.converted_value;
+        }
+    }
+
+    con_a = check_pin_value(values[0], pins_info[4]);
+    con_b = check_pin_value(values[2], pins_info[9]);
+
+    if (con_a != VALUE_OK)
+    {
+        test_result.status = false;
+        snprintf(str_buffer, sizeof(str_buffer), "CON_A: VCC %s", con_a == VALUE_BELOW ? "BAIXO" : "ALTO");
+        strcpy(test_result.message, str_buffer);
+        return test_result;
+    }
+    if (con_b != VALUE_OK)
+    {
+        test_result.status = false;
+        snprintf(str_buffer, sizeof(str_buffer), "CON_B: VCC %s", con_b == VALUE_BELOW ? "BAIXO" : "ALTO");
+        strcpy(test_result.message, str_buffer);
+        return test_result;
+    }
+    test_result.status = true;
+    strcpy(test_result.message, "OK");
+    return test_result;
+}
+
+step_status_t test_auto_short(float *values, int *status)
+{
+    step_status_t test_result;
+
+    static bool ca_done = false;
+    static bool cb_done = false;
+    static bool short_ca_done = false;
+    static bool short_cb_done = false;
+    static bool rl_ca_on = false;
+    static bool rl_cb_on = false;
+
+    vTaskDelay(pdMS_TO_TICKS(300));
+
+    if (!ca_done)
+    {
+        if (values[0] >= pins_info[4].low_limit && !short_ca_done)
+        {
+            gpio_set_level(RL_CURTO_A, 1);
+            rl_ca_on = true;
+        }
+        else
+        {
+            if (rl_ca_on)
+            {
+                vTaskDelay(pdMS_TO_TICKS(300));
+                gpio_set_level(RL_CURTO_A, 0);
+                rl_ca_on = false;
+                short_ca_done = true;
+                status[0] = 1;
+            }
+            else
+            {
+                ca_done = values[0] >= pins_info[4].low_limit;
+            }
+        }
+    }
+    else
+    {
+        status[1] = 1;
+    }
+
+    if (!cb_done)
+    {
+        if (values[1] >= pins_info[9].low_limit && !short_cb_done)
+        {
+            gpio_set_level(RL_CURTO_B, 1);
+            rl_cb_on = true;
+        }
+        else
+        {
+            if (rl_cb_on)
+            {
+                vTaskDelay(pdMS_TO_TICKS(300));
+                gpio_set_level(RL_CURTO_B, 0);
+                rl_cb_on = false;
+                short_cb_done = true;
+                status[2] = 1;
+            }
+            else
+            {
+                cb_done = values[1] >= pins_info[9].low_limit;
+            }
+        }
+    }
+    else
+    {
+        status[3] = 1;
+    }
+
+    if (status[1] && status[3])
+    {
+        ca_done = false;
+        cb_done = false;
+        short_ca_done = false;
+        short_cb_done = false;
+        test_result.status = true;
+        return test_result;
+    }
+    else
+    {
+        test_result.status = false;
+        return test_result;
+    }
 }
 
 pin_result_t check_pin_value(float value, pin_info_t pin_info)
