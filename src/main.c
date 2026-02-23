@@ -55,6 +55,7 @@ adc_channel_config_t *adc_channels[12] = {
     &channel_configs[11],
 };
 
+// Limites superior e inferior de cada pino
 pin_info_t pins_info[10] = {
     {A_CC1, 5.30, 4.9, true},
     {A_CC2, 5.30, 4.9, true},
@@ -111,7 +112,7 @@ void setup()
 
     gpio_set_direction(BTN_A_MOVE, GPIO_MODE_INPUT);
     gpio_set_direction(BTN_B_SELECT, GPIO_MODE_INPUT);
-    gpio_set_pull_mode(BTN_B_SELECT, GPIO_PULLUP_ONLY);
+    gpio_set_pull_mode(BTN_B_SELECT, GPIO_PULLUP_ONLY); // Configurado como PULLUP_ONLY para evitar conflito com as funções secundárias do GPIO2
     gpio_set_direction(RL_CARGAS, GPIO_MODE_OUTPUT);
     gpio_set_direction(RL_CURTO_A, GPIO_MODE_OUTPUT);
     gpio_set_direction(RL_CURTO_B, GPIO_MODE_OUTPUT);
@@ -128,6 +129,7 @@ void main_task(void *pvParameters)
     }
 }
 
+// Define a sequência de etapas no teste
 const test_step_info_t test_sequence[] = {
     {CHANGE_INPUT_SOURCE, ""},
     {CHECK_CONNECTORS, "VERIFICAR CONECTORES"},
@@ -472,6 +474,7 @@ void state_machine()
     }
 }
 
+// Verifica se o botão foi pressionado com um pequeno debounce
 bool button_pressed(gpio_num_t pin)
 {
     static TickType_t last_press_time[2] = {0};
@@ -496,6 +499,7 @@ bool button_pressed(gpio_num_t pin)
     return false;
 }
 
+// Usa o timer interno do ESP para verificar se um tempo (delay_ms) passou desde (step_start_time_us)
 bool check_timer_delay(int delay_ms)
 {
     int64_t current_time_us = esp_timer_get_time();
@@ -503,6 +507,7 @@ bool check_timer_delay(int delay_ms)
     return elapsed_ms >= delay_ms;
 }
 
+// Salva o tipo de conector (CA/AA/CC) em NVS
 void save_usb_mode(uint8_t usb_mode)
 {
     nvs_handle_t handle;
@@ -512,6 +517,7 @@ void save_usb_mode(uint8_t usb_mode)
     nvs_close(handle);
 }
 
+// Carrega o tipo de conector salvo em NVS ou 0 por padrão
 uint8_t load_usb_mode()
 {
     nvs_handle_t handle;
@@ -529,6 +535,7 @@ step_status_t test_check_connectors()
     step_status_t test_result;
     adc_result_t adc_data;
 
+    // Verifica se a fonte no conector A tem VCC
     adc_data.channel = A_VCC;
     read_channel(&adc_data);
     if (adc_data.converted_value < pins_info[A_VCC].low_limit)
@@ -540,6 +547,7 @@ step_status_t test_check_connectors()
 
     memset(&adc_data, 0, sizeof(adc_result_t));
 
+    // Verifica se a fonte no conector B tem VCC
     adc_data.channel = B_VCC;
     read_channel(&adc_data);
     if (adc_data.converted_value < pins_info[B_VCC].low_limit)
@@ -558,6 +566,7 @@ step_status_t test_check_connectors()
         cc_values[i] = adc_data.value_mv;
     }
 
+    // Verifica se os pinos CC1 e CC2 não estão em ALTO simultaneamente
     // 0=A 1=C 2=Erro
     usb_types[0] = (cc_values[0] != 0) + (cc_values[1] != 0);
     usb_types[1] = (cc_values[2] != 0) + (cc_values[3] != 0);
@@ -574,6 +583,7 @@ step_status_t test_check_connectors()
         return test_result;
     }
 
+    // Verifica se os pinos CC1 e CC2 estão de acordo com o tipo de conector configurado
     // 0=C/A 1=A/A 2=C/C
     switch (usb_mode)
     {
@@ -621,6 +631,8 @@ step_status_t test_data_pins(float *values)
         }
         memset(&adc_data, 0, sizeof(adc_result_t));
     }
+
+    // Verifica os valores dos pinos de acordo com o tipo de conector
     for (int i = 0; i < 10; i++)
     {
         if (pins_info[i].required)
@@ -734,6 +746,7 @@ step_status_t test_auto_short(float *values, int *status)
 
     vTaskDelay(pdMS_TO_TICKS(300));
 
+    // Aciona o curto no conector A e verifica shutdown & recovery
     if (!ca_done)
     {
         if (values[0] >= pins_info[4].low_limit && !short_ca_done)
@@ -762,6 +775,7 @@ step_status_t test_auto_short(float *values, int *status)
         status[1] = 1;
     }
 
+    // Aciona o curto no conector B e verifica shutdown & recovery
     if (!cb_done)
     {
         if (values[1] >= pins_info[9].low_limit && !short_cb_done)
@@ -790,6 +804,7 @@ step_status_t test_auto_short(float *values, int *status)
         status[3] = 1;
     }
 
+    // Retorna (true) caso os dois status de recovery sejam (true)
     if (status[1] && status[3])
     {
         ca_done = false;

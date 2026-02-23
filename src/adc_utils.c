@@ -84,18 +84,26 @@ esp_err_t read_channel(adc_result_t *adc_data)
     }
     int voltage_avg = (voltage_sum / samples);
     adc_data->value_mv = 0;
+
+    // offset é usado para ignorar leituras de "ruido" ou valores baixos no ADC
     int offset = (adc_data->channel == CA || adc_data->channel == CB) ? 500 : 1000;
 
     if (voltage_avg > offset)
     {
         adc_data->value_mv = voltage_avg;
         float converted = convert_reading(voltage_avg);
-        adc_data->converted_value = ch->is_5V ? converted * 2 : converted;
+        adc_data->converted_value = ch->is_5V ? converted * 2 : converted; // Multiplica x2 o valor convertido caso o pino seja de 5V
     }
 
     return ESP_OK;
 }
-float convert_reading(int adc_voltage_mv)
+
+/**
+ * @brief Converte o valor em mV para V a partir das medições feitas em calibração
+ *
+ * @note Não alterar os coeficiêntes sem uma nova calibração
+ */
+static float convert_reading(int adc_voltage_mv)
 {
     // 0.0000002135f * adc_f * adc_f + 0.001102682f * adc_f + 0.366791839f;
     float adc_f = (float)adc_voltage_mv;

@@ -85,6 +85,15 @@ void draw_menu(int selected_option)
     u8g2_SendBuffer(&u8g2);
 }
 
+/**
+ * @brief Calcula a posição X para centralizar o texto, de acordo com a largura, no container
+ * 
+ * @param cx Posição X (pixels) do container
+ * @param cw Largura em pixels do container
+ * @param text Texto a ser centralizado
+ * 
+ * @return Posição em X (pixels) relativa ao container para o texto
+ */
 static int center_text(int cx, int cw, const char *text)
 {
     int tw = u8g2_GetStrWidth(&u8g2, text);
@@ -92,6 +101,15 @@ static int center_text(int cx, int cw, const char *text)
     return x + cx;
 }
 
+/**
+ * @brief Desenha cada item do menu de configuração, com fundo preto na opção selecionada
+ * 
+ * @param cx Posição X (pixels) do container
+ * @param cw Largura em pixels do container
+ * @param text_y Posição Y (pixels) do texto
+ * @param text Texto da opção
+ * @param selected Define qual opção esta selecionada (fundo preto)
+ */
 static void draw_settings_menu_item(int cx, int cw, int text_y, const char *text, bool selected)
 {
     int font_height = u8g2_GetAscent(&u8g2) - u8g2_GetDescent(&u8g2);
