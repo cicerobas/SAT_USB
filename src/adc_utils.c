@@ -57,6 +57,19 @@ esp_err_t adc_init()
     return ESP_OK;
 }
 
+/**
+ * @brief Converte o valor em mV para V a partir das medições feitas em calibração
+ *
+ * @note Não alterar os coeficiêntes sem uma nova calibração
+ */
+static float convert_reading(int adc_voltage_mv)
+{
+    // 0.0000002135f * adc_f * adc_f + 0.001102682f * adc_f + 0.366791839f;
+    float adc_f = (float)adc_voltage_mv;
+    float result = 0.0000002135f * adc_f * adc_f + 0.001102682f * adc_f + 0.366791839f;
+    return result;
+}
+
 esp_err_t read_channel(adc_result_t *adc_data)
 {
     adc_channel_config_t *ch = adc_channels[adc_data->channel];
@@ -98,15 +111,3 @@ esp_err_t read_channel(adc_result_t *adc_data)
     return ESP_OK;
 }
 
-/**
- * @brief Converte o valor em mV para V a partir das medições feitas em calibração
- *
- * @note Não alterar os coeficiêntes sem uma nova calibração
- */
-static float convert_reading(int adc_voltage_mv)
-{
-    // 0.0000002135f * adc_f * adc_f + 0.001102682f * adc_f + 0.366791839f;
-    float adc_f = (float)adc_voltage_mv;
-    float result = 0.0000002135f * adc_f * adc_f + 0.001102682f * adc_f + 0.366791839f;
-    return result;
-}

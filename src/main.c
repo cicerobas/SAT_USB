@@ -266,8 +266,8 @@ void state_machine()
                 {
                     settings_selected_input++;
                 }
-                gpio_set_level(OPTO_SRC_1, settings_selected_input == 1);
-                gpio_set_level(OPTO_SRC_2, settings_selected_input == 2);
+                gpio_set_level(OPTO_SRC_1, settings_selected_input > 0);
+                gpio_set_level(OPTO_SRC_2, settings_selected_input > 1);
 
                 break;
             }
@@ -282,8 +282,8 @@ void state_machine()
         {
         case CHANGE_INPUT_SOURCE:
             current_input_source++;
-            gpio_set_level(OPTO_SRC_1, current_input_source == 1);
-            gpio_set_level(OPTO_SRC_2, current_input_source == 2);
+            gpio_set_level(OPTO_SRC_1, current_input_source > 0);
+            gpio_set_level(OPTO_SRC_2, current_input_source > 1);
 
             vTaskDelay(pdMS_TO_TICKS(100));
             current_step_index++;
