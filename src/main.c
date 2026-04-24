@@ -704,6 +704,7 @@ step_status_t test_vcc_load(float *values, bool load_on)
         if (i == 1 || i == 3)
         {
             values[i] = load_on ? adc_data.converted_value : 0.0;
+            ESP_LOGI("TESTE", "VALOR == %d", adc_data.value_mv);
         }
         else
         {
